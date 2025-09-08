@@ -109,7 +109,7 @@ void Application::CheckNewVersion(Ota& ota) {
 
             SetDeviceState(kDeviceStateUpgrading);
             
-            display->SetIcon(FONT_AWESOME_DOWNLOAD);
+            display->SetIcon(FONT_AWESOME_AI_CHIP);
             std::string message = std::string(Lang::Strings::NEW_VERSION) + ota.GetFirmwareVersion();
             display->SetChatMessage("system", message.c_str());
 

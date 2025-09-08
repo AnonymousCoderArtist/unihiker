@@ -31,24 +31,23 @@
 #define LIGHT_TEXT_COLOR             lv_color_black()           // Black text
 #define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)     // Light gray background
 #define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)     // WeChat green
-#define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()           // White
+#define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x003366)     // White
 #define LIGHT_SYSTEM_BUBBLE_COLOR    lv_color_hex(0xE0E0E0)     // Light gray
 #define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
-#define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
+#define LIGHT_BORDER_COLOR           lv_color_hex(0x0055AA)    // Light gray border
 #define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
-
 
 // Define dark theme colors
 const ThemeColors DARK_THEME = {
-    .background = DARK_BACKGROUND_COLOR,
-    .text = DARK_TEXT_COLOR,
-    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
-    .user_bubble = DARK_USER_BUBBLE_COLOR,
-    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
-    .system_text = DARK_SYSTEM_TEXT_COLOR,
-    .border = DARK_BORDER_COLOR,
-    .low_battery = DARK_LOW_BATTERY_COLOR
+    .background = lv_color_black(),
+    .text = lv_color_white(),
+    .chat_background = lv_color_black(),
+    .user_bubble = lv_color_white(),
+    .assistant_bubble = lv_color_hex(0x0055FF),  // Jarvis blue
+    .system_bubble = lv_color_hex(0xAAAAAA),     // Light gray
+    .system_text = lv_color_white(),
+    .border = lv_color_hex(0x0055FF),
+    .low_battery = lv_color_hex(0xFF0000)
 };
 
 // Define light theme colors
@@ -61,11 +60,37 @@ const ThemeColors LIGHT_THEME = {
     .system_bubble = LIGHT_SYSTEM_BUBBLE_COLOR,
     .system_text = LIGHT_SYSTEM_TEXT_COLOR,
     .border = LIGHT_BORDER_COLOR,
-    .low_battery = LIGHT_LOW_BATTERY_COLOR
+    .low_battery = LIGHT_LOW_BATTERY_COLOR,
 };
 
-
 LV_FONT_DECLARE(font_awesome_30_4);
+
+// ---------- Small helpers (UI only, no logic changes) ----------
+static void _anim_set_opa_cb(void* obj, int32_t v) {
+    lv_obj_set_style_opa((lv_obj_t*)obj, (lv_opa_t)v, 0);
+}
+static void ApplyFadeIn(lv_obj_t* obj, uint32_t dur_ms = 180, uint32_t delay_ms = 0) {
+    if (!obj) return;
+    lv_obj_set_style_opa(obj, LV_OPA_TRANSP, 0);
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_time(&a, dur_ms);
+    lv_anim_set_delay(&a, delay_ms);
+    lv_anim_set_exec_cb(&a, _anim_set_opa_cb);
+    lv_anim_start(&a);
+}
+static lv_obj_t* MakeTransparentContainer(lv_obj_t* parent, lv_coord_t w = LV_HOR_RES, lv_coord_t h = LV_SIZE_CONTENT) {
+    lv_obj_t* c = lv_obj_create(parent);
+    lv_obj_set_width(c, w);
+    lv_obj_set_height(c, h);
+    lv_obj_set_style_bg_opa(c, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(c, 0, 0);
+    lv_obj_set_style_pad_all(c, 0, 0);
+    return c;
+}
+// ---------------------------------------------------------------
 
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts, int width, int height)
     : panel_io_(panel_io), panel_(panel), fonts_(fonts) {
@@ -74,7 +99,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     // Load theme from settings
     Settings settings("display", false);
-    current_theme_name_ = settings.GetString("theme", "light");
+    current_theme_name_ = settings.GetString("theme", "dark");
 
     // Update the theme
     if (current_theme_name_ == "dark") {
@@ -360,15 +385,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_top(status_bar_, 2, 0);
     lv_obj_set_style_pad_bottom(status_bar_, 2, 0);
     lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
-    // 设置状态栏的内容垂直居中
     lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    // 创建emotion_label_在状态栏最左侧
+    // emotion_label_ at far left (AI chip by default)
     emotion_label_ = lv_label_create(status_bar_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    lv_obj_set_style_margin_right(emotion_label_, 5, 0); // 添加右边距，与后面的元素分隔
+    lv_obj_set_style_margin_right(emotion_label_, 5, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -393,13 +417,13 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
-    lv_obj_set_style_margin_left(network_label_, 5, 0); // 添加左边距，与前面的元素分隔
+    lv_obj_set_style_margin_left(network_label_, 5, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
-    lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
+    lv_obj_set_style_margin_left(battery_label_, 5, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -424,180 +448,147 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         return;
     }
     
-    //避免出现空的消息框
+    // avoid empty bubbles
     if(strlen(content) == 0) return;
     
-    // 检查消息数量是否超过限制
+    // cap messages
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (child_count >= MAX_MESSAGES) {
-        // 删除最早的消息（第一个子对象）
         lv_obj_t* first_child = lv_obj_get_child(content_, 0);
         lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
         if (first_child != nullptr) {
             lv_obj_del(first_child);
         }
-        // Scroll to the last message immediately
         if (last_child != nullptr) {
             lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
         }
     }
     
-    // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
+    // fold consecutive system messages
     if (strcmp(role, "system") == 0 && child_count > 0) {
-        // 获取最后一个消息容器
         lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
         if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
-            // 获取容器内的气泡
             lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
             if (last_bubble != nullptr) {
-                // 检查气泡类型是否为系统消息
                 void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
                 if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
-                    // 如果最后一个消息也是系统消息，则删除它
                     lv_obj_del(last_container);
                 }
             }
         }
     }
     
-    // Create a message bubble
+    // --------- Create the message bubble itself ----------
     lv_obj_t* msg_bubble = lv_obj_create(content_);
-    lv_obj_set_style_radius(msg_bubble, 8, 0);
+    lv_obj_set_style_radius(msg_bubble, 12, 0);
+    lv_obj_set_style_shadow_width(msg_bubble, 8, 0);
+    lv_obj_set_style_shadow_color(msg_bubble, lv_color_hex(0x0077CC), 0);
     lv_obj_set_scrollbar_mode(msg_bubble, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_border_width(msg_bubble, 1, 0);
     lv_obj_set_style_border_color(msg_bubble, current_theme_.border, 0);
     lv_obj_set_style_pad_all(msg_bubble, 8, 0);
 
-    // Create the message text
+    // Create the text label
     lv_obj_t* msg_text = lv_label_create(msg_bubble);
     lv_label_set_text(msg_text, content);
-    
-    // 计算文本实际宽度
+
+    // measure text width
     lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
+    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 85% screen - padding
+    lv_coord_t min_width = 20;
+    if (text_width < min_width) text_width = min_width;
+    lv_coord_t bubble_width = (text_width < max_width) ? text_width : max_width;
 
-    // 计算气泡宽度
-    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
-    lv_coord_t min_width = 20;  
-    lv_coord_t bubble_width;
-    
-    // 确保文本宽度不小于最小宽度
-    if (text_width < min_width) {
-        text_width = min_width;
-    }
-
-    // 如果文本宽度小于最大宽度，使用文本宽度
-    if (text_width < max_width) {
-        bubble_width = text_width; 
-    } else {
-        bubble_width = max_width;
-    }
-    
-    // 设置消息文本的宽度
-    lv_obj_set_width(msg_text, bubble_width);  // 减去padding
+    lv_obj_set_width(msg_text, bubble_width);
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(msg_text, fonts_.text_font, 0);
 
-    // 设置气泡宽度
     lv_obj_set_width(msg_bubble, bubble_width);
     lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
 
-    // Set alignment and style based on message role
+    // --------- Role-specific layout & colors ----------
     if (strcmp(role, "user") == 0) {
-        // User messages are right-aligned with green background
+        // Right-aligned container to host the bubble
+        lv_obj_t* container = MakeTransparentContainer(content_, LV_HOR_RES, LV_SIZE_CONTENT);
+
+        // Color + explicit black text (your request)
         lv_obj_set_style_bg_color(msg_bubble, current_theme_.user_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme_.text, 0);
-        
-        // 设置自定义属性标记气泡类型
+        lv_obj_set_style_text_color(msg_text, lv_color_black(), 0);  // Force black text
+
         lv_obj_set_user_data(msg_bubble, (void*)"user");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    } else if (strcmp(role, "assistant") == 0) {
-        // Assistant messages are left-aligned with white background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme_.assistant_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme_.text, 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(msg_bubble, (void*)"assistant");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    } else if (strcmp(role, "system") == 0) {
-        // System messages are center-aligned with light gray background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme_.system_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme_.system_text, 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(msg_bubble, (void*)"system");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    }
-    
-    // Create a full-width container for user messages to ensure right alignment
-    if (strcmp(role, "user") == 0) {
-        // Create a full-width container
-        lv_obj_t* container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
-        lv_obj_set_height(container, LV_SIZE_CONTENT);
-        
-        // Make container transparent and borderless
-        lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(container, 0, 0);
-        lv_obj_set_style_pad_all(container, 0, 0);
-        
-        // Move the message bubble into this container
         lv_obj_set_parent(msg_bubble, container);
-        
-        // Right align the bubble in the container
+
+        // Right align with some right margin
         lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
-        
-        // Auto-scroll to this container
+
+        // Fade-in the whole container (cleaner)
+        ApplyFadeIn(container);
+
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
+
+        // Don't grow
+        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
+
+    } else if (strcmp(role, "assistant") == 0) {
+        // Row container with icon (left) + bubble (right) to avoid overlap
+        lv_obj_t* row = MakeTransparentContainer(content_, LV_HOR_RES, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_column(row, 8, 0);
+        lv_obj_set_style_pad_row(row, 0, 0);
+        lv_obj_set_style_pad_left(row, 0, 0);
+        lv_obj_set_style_pad_right(row, 0, 0);
+        lv_obj_set_style_pad_top(row, 0, 0);
+        lv_obj_set_style_pad_bottom(row, 0, 0);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        // AI badge (icon) on the left
+        lv_obj_t* badge = lv_label_create(row);
+        lv_obj_set_style_text_font(badge, &font_awesome_30_4, 0);
+        lv_label_set_text(badge, FONT_AWESOME_AI_CHIP);
+        // Let the badge inherit theme text color for contrast
+        lv_obj_set_style_text_color(badge, current_theme_.text, 0);
+
+        // Bubble to the right of the badge
+        lv_obj_set_parent(msg_bubble, row);
+        lv_obj_set_style_bg_color(msg_bubble, current_theme_.assistant_bubble, 0);
+        lv_obj_set_style_text_color(msg_text, current_theme_.text, 0);
+        lv_obj_set_user_data(msg_bubble, (void*)"assistant");
+
+        // Align inside the row; no manual align needed since flex does layout
+        // Add a tiny margin to the bubble so it doesn't stick to the right edge on small screens
+        lv_obj_set_style_margin_right(msg_bubble, 10, 0);
+
+        // Smooth entrance
+        ApplyFadeIn(badge, 160, 0);
+        ApplyFadeIn(msg_bubble, 180, 20);
+        ApplyFadeIn(row, 1, 0); // Ensure row is visible immediately
+
+        lv_obj_scroll_to_view_recursive(row, LV_ANIM_ON);
+
+        // Don't grow
+        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
+
     } else if (strcmp(role, "system") == 0) {
-        // 为系统消息创建全宽容器以确保居中对齐
-        lv_obj_t* container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
-        lv_obj_set_height(container, LV_SIZE_CONTENT);
-        
-        // 使容器透明且无边框
-        lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(container, 0, 0);
-        lv_obj_set_style_pad_all(container, 0, 0);
-        
-        // 将消息气泡移入此容器
+        // Center-aligned container
+        lv_obj_t* container = MakeTransparentContainer(content_, LV_HOR_RES, LV_SIZE_CONTENT);
+
+        lv_obj_set_style_bg_color(msg_bubble, current_theme_.system_bubble, 0);
+        lv_obj_set_style_text_color(msg_text, current_theme_.system_text, 0);
+        lv_obj_set_user_data(msg_bubble, (void*)"system");
+
         lv_obj_set_parent(msg_bubble, container);
-        
-        // 将气泡居中对齐在容器中
         lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
-        
-        // 自动滚动底部
+
+        ApplyFadeIn(container);
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
     } else {
-        // For assistant messages
-        // Left align assistant messages
+        // Unknown role -> treat like assistant (left)
         lv_obj_align(msg_bubble, LV_ALIGN_LEFT_MID, 0, 0);
-
-        // Auto-scroll to the message bubble
+        ApplyFadeIn(msg_bubble);
         lv_obj_scroll_to_view_recursive(msg_bubble, LV_ANIM_ON);
     }
     
-    // Store reference to the latest message label
+    // Track latest label
     chat_message_label_ = msg_text;
 }
 
@@ -608,39 +599,29 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     }
     
     if (img_dsc != nullptr) {
-        // Create a message bubble for image preview
+        // Image bubble
         lv_obj_t* img_bubble = lv_obj_create(content_);
         lv_obj_set_style_radius(img_bubble, 8, 0);
         lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_style_border_width(img_bubble, 1, 0);
         lv_obj_set_style_border_color(img_bubble, current_theme_.border, 0);
         lv_obj_set_style_pad_all(img_bubble, 8, 0);
-        
-        // Set image bubble background color (similar to system message)
         lv_obj_set_style_bg_color(img_bubble, current_theme_.assistant_bubble, 0);
-        
-        // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(img_bubble, (void*)"image");
         
-        // Create the image object inside the bubble
         lv_obj_t* preview_image = lv_image_create(img_bubble);
         
-        // Copy the image descriptor and data to avoid source data changes
+        // Copy descriptor & data
         lv_img_dsc_t* copied_img_dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
         if (copied_img_dsc == nullptr) {
             ESP_LOGE(TAG, "Failed to allocate memory for image descriptor");
             lv_obj_del(img_bubble);
             return;
         }
-        
-        // Copy the header
         copied_img_dsc->header = img_dsc->header;
         copied_img_dsc->data_size = img_dsc->data_size;
-        
-        // Copy the image data
         uint8_t* copied_data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (copied_data == nullptr) {
-            // Fallback to internal RAM if SPIRAM allocation fails
             copied_data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_8BIT);
         }
         if (copied_data == nullptr) {
@@ -649,30 +630,22 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
             lv_obj_del(img_bubble);
             return;
         }
-        
         memcpy(copied_data, img_dsc->data, img_dsc->data_size);
         copied_img_dsc->data = copied_data;
         
-        // Calculate appropriate size for the image
-        lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
-        lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
-        
-        // Calculate zoom factor to fit within maximum dimensions
+        // Size to fit
+        lv_coord_t max_width = LV_HOR_RES * 70 / 100;
+        lv_coord_t max_height = LV_VER_RES * 50 / 100;
         lv_coord_t img_width = copied_img_dsc->header.w;
         lv_coord_t img_height = copied_img_dsc->header.h;
-        
         lv_coord_t zoom_w = (max_width * 256) / img_width;
         lv_coord_t zoom_h = (max_height * 256) / img_height;
         lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
-        
-        // Ensure zoom doesn't exceed 256 (100%)
         if (zoom > 256) zoom = 256;
-        
-        // Set image properties
+
         lv_image_set_src(preview_image, copied_img_dsc);
         lv_image_set_scale(preview_image, zoom);
         
-        // Add event handler to clean up copied data when image is deleted
         lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
             lv_img_dsc_t* copied_img_dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
             if (copied_img_dsc != nullptr) {
@@ -681,24 +654,15 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
             }
         }, LV_EVENT_DELETE, (void*)copied_img_dsc);
         
-        // Calculate actual scaled image dimensions
         lv_coord_t scaled_width = (img_width * zoom) / 256;
         lv_coord_t scaled_height = (img_height * zoom) / 256;
-        
-        // Set bubble size to be 16 pixels larger than the image (8 pixels on each side)
         lv_obj_set_width(img_bubble, scaled_width + 16);
         lv_obj_set_height(img_bubble, scaled_height + 16);
-        
-        // Don't grow in flex layout
         lv_obj_set_style_flex_grow(img_bubble, 0, 0);
-        
-        // Center the image within the bubble
         lv_obj_center(preview_image);
-        
-        // Left align the image bubble like assistant messages
         lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
 
-        // Auto-scroll to the image bubble
+        ApplyFadeIn(img_bubble);
         lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
     }
 }
@@ -736,10 +700,10 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_style_pad_all(content_, 5, 0);
     lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
-    lv_obj_set_style_border_color(content_, current_theme_.border, 0); // Border color for content
+    lv_obj_set_style_border_color(content_, current_theme_.border, 0);
 
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);
 
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
@@ -753,9 +717,9 @@ void LcdDisplay::SetupUI() {
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
 
     /* Status bar */
@@ -814,17 +778,13 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     }
     
     if (img_dsc != nullptr) {
-        // 设置图片源并显示预览图片
         lv_image_set_src(preview_image_, img_dsc);
-        // zoom factor 0.5
         lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
         lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        // 隐藏emotion_label_
         if (emotion_label_ != nullptr) {
             lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
         }
     } else {
-        // 隐藏预览图片并显示emotion_label_
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
         if (emotion_label_ != nullptr) {
             lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
@@ -882,7 +842,6 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
 
 #if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
     lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
     if (preview_image_ != nullptr) {
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
@@ -899,7 +858,6 @@ void LcdDisplay::SetIcon(const char* icon) {
     lv_label_set_text(emotion_label_, icon);
 
 #if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
     lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
     if (preview_image_ != nullptr) {
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
@@ -915,92 +873,49 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     } else if (theme_name == "light" || theme_name == "LIGHT") {
         current_theme_ = LIGHT_THEME;
     } else {
-        // Invalid theme name, return false
         ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
         return;
     }
     
-    // Get the active screen
     lv_obj_t* screen = lv_screen_active();
-    
-    // Update the screen colors
     lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
     lv_obj_set_style_text_color(screen, current_theme_.text, 0);
     
-    // Update container colors
     if (container_ != nullptr) {
         lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
         lv_obj_set_style_border_color(container_, current_theme_.border, 0);
     }
     
-    // Update status bar colors
     if (status_bar_ != nullptr) {
         lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
         lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
-        
-        // Update status bar elements
-        if (network_label_ != nullptr) {
-            lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
-        }
-        if (status_label_ != nullptr) {
-            lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
-        }
-        if (notification_label_ != nullptr) {
-            lv_obj_set_style_text_color(notification_label_, current_theme_.text, 0);
-        }
-        if (mute_label_ != nullptr) {
-            lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
-        }
-        if (battery_label_ != nullptr) {
-            lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
-        }
-        if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-        }
+        if (network_label_ != nullptr) lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
+        if (status_label_ != nullptr) lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
+        if (notification_label_ != nullptr) lv_obj_set_style_text_color(notification_label_, current_theme_.text, 0);
+        if (mute_label_ != nullptr) lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
+        if (battery_label_ != nullptr) lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
+        if (emotion_label_ != nullptr) lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
     }
     
-    // Update content area colors
     if (content_ != nullptr) {
         lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
         lv_obj_set_style_border_color(content_, current_theme_.border, 0);
-        
-        // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-        // Iterate through all children of content (message containers or bubbles)
         uint32_t child_count = lv_obj_get_child_cnt(content_);
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* obj = lv_obj_get_child(content_, i);
             if (obj == nullptr) continue;
-            
             lv_obj_t* bubble = nullptr;
-            
-            // 检查这个对象是容器还是气泡
-            // 如果是容器（用户或系统消息），则获取其子对象作为气泡
-            // 如果是气泡（助手消息），则直接使用
             if (lv_obj_get_child_cnt(obj) > 0) {
-                // 可能是容器，检查它是否为用户或系统消息容器
-                // 用户和系统消息容器是透明的
                 lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, 0);
-                if (bg_opa == LV_OPA_TRANSP) {
-                    // 这是用户或系统消息的容器
-                    bubble = lv_obj_get_child(obj, 0);
-                } else {
-                    // 这可能是助手消息的气泡自身
-                    bubble = obj;
-                }
-            } else {
-                // 没有子元素，可能是其他UI元素，跳过
-                continue;
-            }
-            
+                if (bg_opa == LV_OPA_TRANSP) bubble = lv_obj_get_child(obj, 0);
+                else bubble = obj;
+            } else continue;
+
             if (bubble == nullptr) continue;
-            
-            // 使用保存的用户数据来识别气泡类型
             void* bubble_type_ptr = lv_obj_get_user_data(bubble);
             if (bubble_type_ptr != nullptr) {
                 const char* bubble_type = static_cast<const char*>(bubble_type_ptr);
-                
-                // 根据气泡类型应用正确的颜色
                 if (strcmp(bubble_type, "user") == 0) {
                     lv_obj_set_style_bg_color(bubble, current_theme_.user_bubble, 0);
                 } else if (strcmp(bubble_type, "assistant") == 0) {
@@ -1010,50 +925,37 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                 } else if (strcmp(bubble_type, "image") == 0) {
                     lv_obj_set_style_bg_color(bubble, current_theme_.system_bubble, 0);
                 }
-                
-                // Update border color
                 lv_obj_set_style_border_color(bubble, current_theme_.border, 0);
-                
-                // Update text color for the message
+
                 if (lv_obj_get_child_cnt(bubble) > 0) {
                     lv_obj_t* text = lv_obj_get_child(bubble, 0);
                     if (text != nullptr) {
-                        // 根据气泡类型设置文本颜色
                         if (strcmp(bubble_type, "system") == 0) {
                             lv_obj_set_style_text_color(text, current_theme_.system_text, 0);
+                        } else if (strcmp(bubble_type, "user") == 0) {
+                            // keep user text black as requested
+                            lv_obj_set_style_text_color(text, lv_color_black(), 0);
                         } else {
                             lv_obj_set_style_text_color(text, current_theme_.text, 0);
                         }
                     }
                 }
             } else {
-                // 如果没有标记，回退到之前的逻辑（颜色比较）
-                // ...保留原有的回退逻辑...
                 lv_color_t bg_color = lv_obj_get_style_bg_color(bubble, 0);
-            
-                // 改进bubble类型检测逻辑，不仅使用颜色比较
                 bool is_user_bubble = false;
                 bool is_assistant_bubble = false;
                 bool is_system_bubble = false;
-            
-                // 检查用户bubble
                 if (lv_color_eq(bg_color, DARK_USER_BUBBLE_COLOR) || 
                     lv_color_eq(bg_color, LIGHT_USER_BUBBLE_COLOR) ||
                     lv_color_eq(bg_color, current_theme_.user_bubble)) {
                     is_user_bubble = true;
-                }
-                // 检查系统bubble
-                else if (lv_color_eq(bg_color, DARK_SYSTEM_BUBBLE_COLOR) || 
-                         lv_color_eq(bg_color, LIGHT_SYSTEM_BUBBLE_COLOR) ||
-                         lv_color_eq(bg_color, current_theme_.system_bubble)) {
+                } else if (lv_color_eq(bg_color, DARK_SYSTEM_BUBBLE_COLOR) || 
+                           lv_color_eq(bg_color, LIGHT_SYSTEM_BUBBLE_COLOR) ||
+                           lv_color_eq(bg_color, current_theme_.system_bubble)) {
                     is_system_bubble = true;
-                }
-                // 剩余的都当作助手bubble处理
-                else {
+                } else {
                     is_assistant_bubble = true;
                 }
-            
-                // 根据bubble类型应用正确的颜色
                 if (is_user_bubble) {
                     lv_obj_set_style_bg_color(bubble, current_theme_.user_bubble, 0);
                 } else if (is_assistant_bubble) {
@@ -1061,19 +963,17 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                 } else if (is_system_bubble) {
                     lv_obj_set_style_bg_color(bubble, current_theme_.system_bubble, 0);
                 }
-                
-                // Update border color
                 lv_obj_set_style_border_color(bubble, current_theme_.border, 0);
-                
-                // Update text color for the message
+
                 if (lv_obj_get_child_cnt(bubble) > 0) {
                     lv_obj_t* text = lv_obj_get_child(bubble, 0);
                     if (text != nullptr) {
-                        // 回退到颜色检测逻辑
                         if (lv_color_eq(bg_color, current_theme_.system_bubble) ||
                             lv_color_eq(bg_color, DARK_SYSTEM_BUBBLE_COLOR) || 
                             lv_color_eq(bg_color, LIGHT_SYSTEM_BUBBLE_COLOR)) {
                             lv_obj_set_style_text_color(text, current_theme_.system_text, 0);
+                        } else if (is_user_bubble) {
+                            lv_obj_set_style_text_color(text, lv_color_black(), 0);
                         } else {
                             lv_obj_set_style_text_color(text, current_theme_.text, 0);
                         }
@@ -1082,22 +982,18 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
             }
         }
 #else
-        // Simple UI mode - just update the main chat message
         if (chat_message_label_ != nullptr) {
             lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
         }
-        
         if (emotion_label_ != nullptr) {
             lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
         }
 #endif
     }
     
-    // Update low battery popup
     if (low_battery_popup_ != nullptr) {
         lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     }
 
-    // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
 }

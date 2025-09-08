@@ -5,6 +5,7 @@
 #include <driver/gpio.h>
 #include <esp_event.h>
 
+#include "web_tool.h"
 #include "application.h"
 #include "system_info.h"
 
@@ -23,6 +24,7 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    register_web_tool();
 
     // Launch the application
     auto& app = Application::GetInstance();
